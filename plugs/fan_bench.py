@@ -12,7 +12,7 @@ counter outputs, the three tach counter inputs and the IEPE analog input
 optical sensor on a reflective mark on each hub, an NTi Audio XL2 with an
 M2230 microphone, and a Chroma 19032 for insulation resistance and the AC
 dielectric test. The mock synthesizes a healthy tray: both rotors on their
-nominal curve within 2 %, a spin-up that peaks near 12 A at
+duty line within 5 points, a spin-up that peaks near 12 A at
 13.2 V, clean tachs, a balanced rotor pair with new bearings, 70.8 dBA.
 The 60 s dielectric dwell and the settling at each duty point return
 without waiting. Swap for classes speaking SCPI, nidaqmx and smbus; the
@@ -27,7 +27,6 @@ from utils.recipe import (
     BLADES,
     FRU_IDENTITY,
     NOMINAL_MAX_RPM,
-    NOMINAL_RPM_FRACTION,
     PWM_FREQ_KHZ,
     RATED_CURRENT_A,
     STARTUP_CAPTURE_S,
@@ -38,11 +37,11 @@ from utils.recipe import (
     bearing_defect_frequencies,
 )
 
-# This tray's rotors against their nominal curve: the inlet rotor runs
-# 1.2 % fast, the outlet rotor 0.6 % slow, and both clamp a little high at
-# the 20 % minimum-speed point.
+# This tray's speed curve as a fraction of full speed against duty: a
+# little above the duty line at low duty, as a minimum-speed clamp leaves
+# it. The inlet rotor runs 1.2 % fast, the outlet rotor 0.6 % slow.
+_CURVE = {20: 0.24, 30: 0.33, 50: 0.52, 70: 0.71, 100: 1.00}
 _SPEED_OFFSET = {"a": 0.012, "b": -0.006}
-_MIN_DUTY_BIAS = 0.004
 _IDLE_CURRENT_A = 0.15
 _SPIN_UP_TAU_S = {"a": 0.60, "b": 0.75}
 _START_CURRENT_LIMIT_X = 2.0  # the drive's current limit, in multiples of rated, until back-EMF builds
@@ -113,10 +112,8 @@ class FanBench:
         duty = self._duty[rotor]
         if self._supply_v == 0.0 or duty <= 0.0:
             return 0.0
-        pts = sorted(NOMINAL_RPM_FRACTION)
-        frac = float(np.interp(duty, pts, [NOMINAL_RPM_FRACTION[p] for p in pts]))
-        if duty <= pts[0]:
-            frac += _MIN_DUTY_BIAS
+        pts = sorted(_CURVE)
+        frac = float(np.interp(duty, pts, [_CURVE[p] for p in pts]))
         v_scale = self._supply_v / SUPPLY_V
         return NOMINAL_MAX_RPM[rotor] * frac * (1.0 + _SPEED_OFFSET[rotor]) * v_scale
 

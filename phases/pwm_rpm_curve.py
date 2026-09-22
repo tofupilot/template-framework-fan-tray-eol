@@ -1,24 +1,26 @@
 import numpy as np
 
-from utils.recipe import DUTY_POINTS_PCT, NOMINAL_MAX_RPM, NOMINAL_RPM_FRACTION, ROTORS, SETTLE_S, SUPPLY_V
+from utils.recipe import DUTY_POINTS_PCT, NOMINAL_MAX_RPM, ROTORS, SETTLE_S, SUPPLY_V
 
 
 def curve_stats(rotor, rpm, log):
-    """Worst deviation from the rotor's nominal curve and the 20 % point
-    as a percentage of its own full speed."""
-    nominal = np.array([NOMINAL_RPM_FRACTION[d] * NOMINAL_MAX_RPM[rotor] for d in DUTY_POINTS_PCT])
-    dev = 100.0 * (np.array(rpm) - nominal) / nominal
-    min_speed = 100.0 * rpm[0] / rpm[-1]
-    log.info(f"Rotor {rotor.upper()}: worst deviation {np.abs(dev).max():+.2f} % from nominal, {min_speed:.1f} % of full speed at {DUTY_POINTS_PCT[0]} % duty")
-    return round(float(np.abs(dev).max()), 2), round(float(min_speed), 1)
+    """Intel 3.3: the speed as a percentage of the rotor's own full speed
+    must match the duty within 10 points; 3.2: the 20 % point at or below
+    30 % of full speed."""
+    pct_of_full = 100.0 * np.array(rpm) / rpm[-1]
+    dev = pct_of_full - np.array(DUTY_POINTS_PCT)
+    worst = dev[np.argmax(np.abs(dev))]
+    log.info(f"Rotor {rotor.upper()}: worst deviation {worst:+.2f} points from the duty line, {pct_of_full[0]:.1f} % of full speed at {DUTY_POINTS_PCT[0]} % duty")
+    return round(float(abs(worst)), 2), round(float(pct_of_full[0]), 1)
 
 
 def pwm_rpm_curve(measurements, bench, log):
     """Both rotors through the duty points at 12 V, speed from each tach
-    and current from each feed. Each rotor is judged against its own
-    nominal curve (within 10 % at every point, the 20 % point at or below
-    30 % of full speed) and the two are judged against each other at
-    100 %: a rotor that lags its twin is loaded, even inside its own band."""
+    and current from each feed. Each rotor is judged against the duty line
+    (speed in percent of its own full speed within 10 points of the duty,
+    the 20 % point at or below 30 %), its full speed against the datasheet,
+    and the two rotors against each other at 100 %: a rotor that lags its
+    twin is loaded, even inside its own band."""
     bench.supply_on(SUPPLY_V)
     rpm = {r: [] for r in ROTORS}
     amps = {r: [] for r in ROTORS}

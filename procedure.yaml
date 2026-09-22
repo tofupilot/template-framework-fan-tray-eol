@@ -95,7 +95,7 @@ main:
     measurements:
       - name: PWM Curve
         key: pwm_curve
-        title: Speed and current of both rotors against PWM duty at 12 V
+        title: Speed and current of both rotors against PWM duty at 12 V, speed judged in percent of full speed against the duty
         x_axis:
           legend: PWM duty
           unit: "%"
@@ -143,14 +143,14 @@ main:
       - name: Full Speed A
         key: full_speed_a_rpm
         unit: rpm
-        description: "16 000 rpm nominal, within 10 % (Intel 2.1.4); the reference for the spin-up time."
+        description: "16 000 rpm at 100 % duty on the datasheet, within the datasheet's 10 % (Intel 3.1 leaves the maximum to the vendor); the reference for the spin-up time."
         validators:
           - {operator: ">=", expected_value: 14400.0}
           - {operator: "<=", expected_value: 17600.0}
       - name: Full Speed B
         key: full_speed_b_rpm
         unit: rpm
-        description: "14 500 rpm nominal, within 10 %."
+        description: "14 500 rpm at 100 % duty on the datasheet, within 10 %."
         validators:
           - {operator: ">=", expected_value: 13050.0}
           - {operator: "<=", expected_value: 15950.0}
@@ -168,7 +168,7 @@ main:
     measurements:
       - name: Start-Up
         key: startup
-        title: Tray current and both rotor speeds on a 0 to 100 percent step at 13.2 V
+        title: Tray current and both rotor speeds on a 0 to 100 percent step at 13.2 V (Intel 2.2)
         x_axis:
           legend: Time after the step
           unit: s
@@ -205,7 +205,7 @@ main:
     measurements:
       - name: Tach Pulses Per Revolution A
         key: tach_pulses_per_rev_a
-        description: "Tach frequency over the optical tach's speed (Intel 2.2: two pulses per revolution)."
+        description: "Tach frequency over the optical tach's speed (Intel 2.3: two pulses per revolution)."
         validators:
           - {operator: "==", expected_value: 2}
       - name: Tach Duty A
@@ -217,7 +217,7 @@ main:
       - name: PWM Frequency at Rotor A
         key: pwm_freq_a_khz
         unit: kHz
-        description: "At the rotor pins behind the tray's buffer (Intel 2.1.2: 25 kHz target, 21 to 28 accepted)."
+        description: "At the rotor pins behind the tray's buffer (Intel 2.4: 25 kHz target, 21 to 28 accepted)."
         validators:
           - {operator: ">=", expected_value: 21.0}
           - {operator: "<=", expected_value: 28.0}
@@ -324,6 +324,6 @@ teardown:
           - {operator: "<=", expected_value: 0.01}
       - name: Power Cycles Applied
         key: power_cycles_applied
-        description: "Two in this procedure, against the 7 500 on/off cycles of Intel 4.5; the count goes on the unit."
+        description: "Two in this procedure, against the 7 500 on/off cycles of Intel 5.1.4; the count goes on the unit."
         validators:
           - {operator: "<=", expected_value: 3}
