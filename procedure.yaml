@@ -1,0 +1,329 @@
+name: Server Fan Tray End-of-Line Test
+version: 0.1.0
+description: End-of-line test of a dual-rotor 80 mm 12 V hot-swap fan tray for a 2U server. Insulation and dielectric with the supply off, the FRU EEPROM read through the hot-swap connector against the release, both rotors through the PWM duty points against their nominal curve, a cold start at 13.2 V with the current recorded whole, tach pulses per revolution against the fixture's optical tach, airflow and static pressure on the chamber, the vibration spectrum for imbalance and bearing tones, sound pressure at 1 m, and a teardown that parks the tray, counts its power cycles and attaches the raw accelerometer capture.
+
+unit:
+  auto_identify: true
+  serial_number:
+    description: "Scan the label on the tray's latch"
+    placeholder: "FT80-0000000"
+    pattern: "^FT80-\\d{7}$"
+    default_value: "FT80-0031842"
+  part_number:
+    default_value: "FT-2U-80CR-12"
+  batch_number:
+    default_value: "LOT-2026-38"
+
+plugs:
+  - name: Fan Bench
+    description: "12 V supply with current digitizer, PWM and tach counters, optical tach, accelerometer, sound level meter, safety analyzer and the I2C link to the FRU EEPROM (mock, one plug per bench)"
+    python: plugs.fan_bench:FanBench
+    key: bench
+    config:
+      serial_number: "FT80-0031842"
+  - name: Flow Chamber
+    description: "AMCA 210 / ISO 5801 nozzle chamber whose inlet plate is the tray fixture, damper, pressures and the connector mating counter (mock, held across trays)"
+    python: plugs.flow_bench:FlowBench
+    key: flow_bench
+    scope: station
+
+setup:
+  - name: Identify and Insulation
+    key: identify_and_insulation
+    python: phases.identify_and_insulation
+    ui:
+      components:
+        - key: latch
+          type: radio
+          label: "Latch colour"
+          description: "The latch colour is the airflow variant; this line builds front-to-back trays"
+          required: true
+          bind: measurements.latch_airflow
+          options:
+            - label: "Blue latch, front-to-back"
+              value: "front-to-back"
+            - label: "Red latch, back-to-front"
+              value: "back-to-front"
+        - key: grille
+          type: switch
+          label: "Finger guard seated on the outlet rotor"
+          description: "The chamber reads the tray with its guard, as it ships"
+          required: true
+          bind: measurements.grille_seated
+    measurements:
+      - name: Latch Airflow Variant
+        key: latch_airflow
+        description: "Operator's answer. A back-to-front tray passes every electrical test and starves the chassis."
+        validators:
+          - {operator: "==", expected_value: "front-to-back"}
+      - name: Finger Guard Seated
+        key: grille_seated
+        validators:
+          - {operator: "==", expected_value: true}
+      - name: Insulation Resistance
+        key: insulation_mohm
+        unit: MΩ
+        description: "All lines tied together against the sled at 500 Vdc (vendor EOL item)."
+        validators:
+          - {operator: ">=", expected_value: 10.0}
+      - name: Dielectric Leakage
+        key: dielectric_leakage_ma
+        unit: mA
+        description: "500 Vac lines to sled for 60 s (vendor EOL item); the mock returns without the dwell."
+        validators:
+          - {operator: "<=", expected_value: 5.0}
+      - name: FRU Identity
+        key: fru_identity
+        description: Part number, hardware revision, airflow variant and FRU format from the EEPROM as one object against the release.
+        validators:
+          - operator: "=="
+            expected_value:
+              part_number: FT-2U-80CR-12
+              hw_rev: B2
+              airflow: front-to-back
+              fru_format: ipmi-1.0
+      - name: EEPROM Serial Matches Label
+        key: eeprom_serial_matches_label
+        description: The serial the BMC will inventory is the one on the latch.
+        validators:
+          - {operator: "==", expected_value: true}
+
+main:
+  - name: PWM to RPM Curve
+    key: pwm_rpm_curve
+    python: phases.pwm_rpm_curve
+    measurements:
+      - name: PWM Curve
+        key: pwm_curve
+        title: Speed and current of both rotors against PWM duty at 12 V
+        x_axis:
+          legend: PWM duty
+          unit: "%"
+        y_axis:
+          - legend: Rotor A speed
+            key: rpm_a
+            unit: rpm
+            aggregations:
+              - type: max_dev_pct
+                unit: "%"
+                validators:
+                  - {operator: "<=", expected_value: 10.0}
+              - type: min_speed_pct
+                unit: "%"
+                validators:
+                  - {operator: "<=", expected_value: 30.0}
+          - legend: Rotor B speed
+            key: rpm_b
+            unit: rpm
+            aggregations:
+              - type: max_dev_pct
+                unit: "%"
+                validators:
+                  - {operator: "<=", expected_value: 10.0}
+              - type: min_speed_pct
+                unit: "%"
+                validators:
+                  - {operator: "<=", expected_value: 30.0}
+          - legend: Rotor A current
+            key: current_a
+            unit: A
+            aggregations:
+              - type: at_100_pct_a
+                unit: A
+                validators:
+                  - {operator: "<=", expected_value: 4.4}
+          - legend: Rotor B current
+            key: current_b
+            unit: A
+            aggregations:
+              - type: at_100_pct_a
+                unit: A
+                validators:
+                  - {operator: "<=", expected_value: 4.1}
+      - name: Full Speed A
+        key: full_speed_a_rpm
+        unit: rpm
+        description: "16 000 rpm nominal, within 10 % (Intel 2.1.4); the reference for the spin-up time."
+        validators:
+          - {operator: ">=", expected_value: 14400.0}
+          - {operator: "<=", expected_value: 17600.0}
+      - name: Full Speed B
+        key: full_speed_b_rpm
+        unit: rpm
+        description: "14 500 rpm nominal, within 10 %."
+        validators:
+          - {operator: ">=", expected_value: 13050.0}
+          - {operator: "<=", expected_value: 15950.0}
+      - name: Rotor Mismatch
+        key: rotor_mismatch_pct
+        unit: "%"
+        description: "Each rotor's full speed as a fraction of its own nominal; the two fractions must agree within 5 %. This line's derivation: a rotor that lags its twin is loaded by a rubbing blade or a bearing, even while still inside its own 10 %."
+        validators:
+          - {operator: "<=", expected_value: 5.0}
+
+  - name: Start-Up Current
+    key: startup_current
+    python: phases.startup_current
+    depends_on: [pwm_rpm_curve]
+    measurements:
+      - name: Start-Up
+        key: startup
+        title: Tray current and both rotor speeds on a 0 to 100 percent step at 13.2 V
+        x_axis:
+          legend: Time after the step
+          unit: s
+        y_axis:
+          - legend: Tray current
+            key: current
+            unit: A
+            aggregations:
+              - type: peak_a
+                unit: A
+                validators:
+                  - {operator: "<=", expected_value: 15.4}
+          - legend: Rotor A speed
+            key: rpm_a
+            unit: rpm
+            aggregations:
+              - type: t90_s
+                unit: s
+                validators:
+                  - {operator: "<=", expected_value: 3.0}
+          - legend: Rotor B speed
+            key: rpm_b
+            unit: rpm
+            aggregations:
+              - type: t90_s
+                unit: s
+                validators:
+                  - {operator: "<=", expected_value: 3.0}
+
+  - name: Tach Integrity
+    key: tach_integrity
+    python: phases.tach_integrity
+    depends_on: [startup_current]
+    measurements:
+      - name: Tach Pulses Per Revolution A
+        key: tach_pulses_per_rev_a
+        description: "Tach frequency over the optical tach's speed (Intel 2.2: two pulses per revolution)."
+        validators:
+          - {operator: "==", expected_value: 2}
+      - name: Tach Duty A
+        key: tach_duty_a_pct
+        unit: "%"
+        validators:
+          - {operator: ">=", expected_value: 40.0}
+          - {operator: "<=", expected_value: 60.0}
+      - name: PWM Frequency at Rotor A
+        key: pwm_freq_a_khz
+        unit: kHz
+        description: "At the rotor pins behind the tray's buffer (Intel 2.1.2: 25 kHz target, 21 to 28 accepted)."
+        validators:
+          - {operator: ">=", expected_value: 21.0}
+          - {operator: "<=", expected_value: 28.0}
+      - name: Tach Pulses Per Revolution B
+        key: tach_pulses_per_rev_b
+        validators:
+          - {operator: "==", expected_value: 2}
+      - name: Tach Duty B
+        key: tach_duty_b_pct
+        unit: "%"
+        validators:
+          - {operator: ">=", expected_value: 40.0}
+          - {operator: "<=", expected_value: 60.0}
+      - name: PWM Frequency at Rotor B
+        key: pwm_freq_b_khz
+        unit: kHz
+        validators:
+          - {operator: ">=", expected_value: 21.0}
+          - {operator: "<=", expected_value: 28.0}
+
+  - name: Airflow and Static Pressure
+    key: airflow_and_pressure
+    python: phases.airflow_and_pressure
+    depends_on: [tach_integrity]
+    timeout: 5m
+    measurements:
+      - name: Fan Curve
+        key: fan_curve
+        title: Airflow and static pressure at 100 percent duty, damper from open to shut
+        x_axis:
+          legend: Damper opening
+          unit: "%"
+        y_axis:
+          - legend: Airflow
+            key: airflow
+            unit: CFM
+            aggregations:
+              - type: free_air_cfm
+                unit: CFM
+                validators:
+                  - {operator: ">=", expected_value: 157.5}
+          - legend: Static pressure
+            key: static_pressure
+            unit: Pa
+            aggregations:
+              - type: shutoff_pa
+                unit: Pa
+                validators:
+                  - {operator: ">=", expected_value: 810.0}
+              - type: at_design_cfm_pa
+                unit: Pa
+                validators:
+                  - {operator: ">=", expected_value: 450.0}
+
+  - name: Vibration and Acoustic
+    key: vibration_and_acoustic
+    python: phases.vibration_and_acoustic
+    depends_on: [airflow_and_pressure]
+    measurements:
+      - name: Vibration Spectrum
+        key: spectrum
+        title: Sled acceleration spectrum at 100 percent duty, 20 kHz capture
+        x_axis:
+          legend: Frequency
+          unit: Hz
+        y_axis:
+          - legend: Amplitude
+            key: amplitude
+            unit: g
+            aggregations:
+              - type: one_x_a_g
+                unit: g
+                validators:
+                  - {operator: "<=", expected_value: 1.0}
+              - type: one_x_b_g
+                unit: g
+                validators:
+                  - {operator: "<=", expected_value: 1.0}
+              - type: bearing_a_g
+                unit: g
+                validators:
+                  - {operator: "<=", expected_value: 0.15}
+              - type: bearing_b_g
+                unit: g
+                validators:
+                  - {operator: "<=", expected_value: 0.15}
+      - name: Sound Pressure at 1 m
+        key: sound_pressure_dba
+        unit: dBA
+        description: "ISO 7779 / ECMA-74 method, 1 m on the inlet axis, hemi-anechoic booth. Datasheet 71 dBA plus 3 dB, this line's derivation."
+        validators:
+          - {operator: "<=", expected_value: 74.0}
+
+teardown:
+  - name: Park and Cycles
+    key: park_and_cycles
+    python: phases.park_and_cycles
+    measurements:
+      - name: Current After Park
+        key: current_after_park_a
+        unit: A
+        description: Supply off, nothing back-feeds the tray.
+        validators:
+          - {operator: "<=", expected_value: 0.01}
+      - name: Power Cycles Applied
+        key: power_cycles_applied
+        description: "Two in this procedure, against the 7 500 on/off cycles of Intel 4.5; the count goes on the unit."
+        validators:
+          - {operator: "<=", expected_value: 3}
