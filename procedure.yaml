@@ -1,6 +1,6 @@
 name: Server Fan Tray End-of-Line Test
 version: 0.1.0
-description: End-of-line test of a dual-rotor 80 mm 12 V hot-swap fan tray for a 2U server. Insulation and dielectric with the supply off, the FRU EEPROM read through the hot-swap connector against the release, both rotors through the PWM duty points against their nominal curve, a cold start at 13.2 V with the current recorded whole, tach pulses per revolution against the fixture's optical tach, airflow and static pressure on the chamber, the vibration spectrum for imbalance and bearing tones, sound pressure at 1 m, and a teardown that parks the tray, counts its power cycles and attaches the raw accelerometer capture.
+description: End-of-line test of a dual-rotor 80 mm 12 V hot-swap fan tray for a 2U server. Insulation and dielectric with the supply off, the FRU EEPROM read through the hot-swap connector against the release, both rotors through the PWM duty points with the speed in percent of full speed against the duty line, a cold start at 13.2 V with the current recorded whole, tach pulses per revolution against the fixture's optical tach, airflow and static pressure on the chamber, the vibration spectrum for imbalance and bearing tones, sound pressure at 1 m, and a teardown that parks the tray, counts its power cycles and attaches the raw accelerometer capture.
 
 unit:
   auto_identify: true
